@@ -1,0 +1,75 @@
+{
+ "date_checked": "2026-09-28",
+ "source": "SendCutSend instant quote (no account), 6061-T6 aluminum, laser cut only; services (tapping, countersinking) not selectable on the anonymous quote; v6.1: hood carrier and swing arm re-estimated from the v6 quote (their shapes grew slightly), the rest unchanged",
+ "items": [
+  {
+   "file": "turret_ring.dxf",
+   "stock": "0.125 in",
+   "qty": 2,
+   "each": 29.36,
+   "line": 58.72
+  },
+  {
+   "file": "base_plate.dxf",
+   "stock": "0.250 in",
+   "qty": 1,
+   "each": 107.19,
+   "line": 107.19
+  },
+  {
+   "file": "deck.dxf",
+   "stock": "0.250 in",
+   "qty": 1,
+   "each": 115.81,
+   "line": 115.81
+  },
+  {
+   "file": "side_plate_servo.dxf",
+   "stock": "0.250 in",
+   "qty": 1,
+   "each": 104.26,
+   "line": 104.26,
+   "note": "reused v6 quote; v6.1 change is small (about -0.75% area, +1.8% cut length): estimate"
+  },
+  {
+   "file": "side_plate_motor.dxf",
+   "stock": "0.250 in",
+   "qty": 1,
+   "each": 106.62,
+   "line": 106.62,
+   "note": "reused v6 quote; v6.1 change is small (about -0.75% area, +1.8% cut length): estimate"
+  },
+  {
+   "file": "hood_carrier.dxf",
+   "stock": "0.250 in",
+   "qty": 2,
+   "each": 41.9,
+   "line": 83.8,
+   "note": "v6.1 estimate: v6 quote $41.11 scaled by +2% material/cut (bumper lobe)"
+  },
+  {
+   "file": "swing_arm.dxf",
+   "stock": "0.250 in",
+   "qty": 2,
+   "each": 8.59,
+   "line": 17.18,
+   "note": "v6.1 estimate: v6 quote $7.59 scaled by +18% material / +8% cut (anchor lobe)"
+  },
+  {
+   "file": "motor_adapter.dxf",
+   "stock": "0.125 in",
+   "qty": 1,
+   "each": 5.6,
+   "line": 5.6
+  },
+  {
+   "file": "belt_test_jack.dxf",
+   "stock": "0.250 in",
+   "qty": 1,
+   "each": 40.64,
+   "line": 40.64
+  }
+ ],
+ "total": 639.82,
+ "not_priced": "34 M4 taps (deck 8, servo plate 4, motor plate 2, ring 2x8, adapter 4) and 16 countersinks (hood carriers 2 x 5 outer + 4 hood-gear, swing arms 2): SendCutSend's quote only offers these on holes drawn at its own tap-drill sizes, and not without an account; or do them by hand with an M4 tap and a countersink bit"
+}

@@ -1,0 +1,1100 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<title>BIOBUZZ Shot Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --ground: #e8ecef; --panel: #f7f9fa; --stage: #d9e0e5; --ink: #16202a; --muted: #56636f; --line: #c6cfd6;
+  --accent: #c8321f; --accent-ink: #ffffff; --pollen: #e9b824; --nectar: #cf2f27; --nectar-blue: #2a66c9;
+  --good: #2f7d4f; --bad: #b3261e; --s1: #2a78d6;
+  --font-ui: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark; --ground: #0f1418; --panel: #161d23; --stage: #0b0f12; --ink: #e3e9ee; --muted: #93a1ae;
+    --line: #2a343d; --accent: #ef5a43; --accent-ink: #140806; --good: #5cc48a; --bad: #f2807a; --s1: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark; --ground: #0f1418; --panel: #161d23; --stage: #0b0f12; --ink: #e3e9ee; --muted: #93a1ae;
+  --line: #2a343d; --accent: #ef5a43; --accent-ink: #140806; --good: #5cc48a; --bad: #f2807a; --s1: #3987e5;
+}
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); font: 15px/1.5 var(--font-body); margin: 0 auto; max-width: 1500px;
+  padding: 16px clamp(16px, 3vw, 32px) 40px; }
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; margin-bottom: 12px; }
+h1 { font: 700 clamp(24px, 3.2vw, 34px)/1.05 var(--font-ui); margin: 0; }
+h1 small { display: block; font: 600 13px/1.4 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+header a { color: var(--muted); font: 600 13px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; }
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; }
+@media (max-width: 900px) { .work { grid-template-columns: 1fr; } }
+.stage { position: relative; background: var(--stage); border-radius: 6px; overflow: hidden; min-height: 420px; height: min(76vh, 780px); touch-action: none; }
+@media (max-width: 900px) { .stage { height: 62vh; } }
+.stage canvas { display: block; width: 100%; height: 100%; outline: none; }
+.stage .loading { position: absolute; inset: 0; display: grid; place-items: center; font: 600 14px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.hud { position: absolute; left: 10px; top: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.hud .pill { background: color-mix(in oklab, var(--panel) 88%, transparent); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; font: 500 13px/1.2 var(--font-mono); }
+.hud .pill b { font: 600 11px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.hud .status { font-family: var(--font-body); }
+.hud .status.ok { border-color: var(--good); } .hud .status.bad { border-color: var(--bad); }
+/* phones: the readouts move out of the 3D view into a compact grid right under it (the page script moves the element) */
+.hud.below { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 6px 0 2px; pointer-events: auto; }
+.hud.below .pill { padding: 4px 6px; font-size: 12px; background: var(--panel); display: flex; justify-content: space-between; gap: 6px; }
+.hud.below .pill b { font-size: 10px; margin: 0; }
+.hud.below .status, .hud.below .hudcalc { grid-column: 1 / -1; display: block; font-size: 13px; }
+.hud.below .pill b .long { display: none; }
+.hud .hudcalc[hidden] { display: none; }
+@media (max-width: 600px), (pointer: coarse) { .hint { display: none; } }
+.hint { position: absolute; left: 10px; bottom: 8px; font: 500 12px var(--font-ui); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); pointer-events: none; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.label { font: 600 12px/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+.label output { font: 500 12px var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--ink); }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.seg button { font: 600 13.5px/1 var(--font-ui); letter-spacing: .03em; padding: 9px 4px; border: 0; background: transparent; color: var(--ink); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed=true] { background: var(--ink); color: var(--panel); }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fire { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
+.fire button { font: 700 15px/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; padding: 12px 8px; border-radius: 5px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.fire button.ghost { background: none; border: 1px solid var(--line); color: var(--ink); font-size: 13px; }
+.fire button:disabled { opacity: .45; cursor: not-allowed; }
+.aimnote { font-size: 13px; line-height: 1.45; color: var(--muted); margin-top: 6px; }
+.aimnote b { color: var(--ink); }
+.manbox { display: grid; gap: 10px; margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.manbox.locked input { opacity: .55; }
+.calc { font: 600 13.5px/1 var(--font-ui); letter-spacing: .05em; text-transform: uppercase; padding: 10px; border-radius: 5px; border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer; }
+.calc[hidden] { display: none; }
+.hud .hudcalc { pointer-events: auto; background: var(--panel); padding: 6px 10px; font-size: 12.5px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.checks { display: grid; gap: 6px; font-size: 14px; }
+.checks label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.checks input { accent-color: var(--accent); width: 16px; height: 16px; }
+.log { font: 13px/1.5 var(--font-mono); max-height: 132px; overflow: auto; border-top: 1px solid var(--line); padding-top: 8px; }
+.log .in { color: var(--good); } .log .out { color: var(--bad); }
+.legend { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.legend .ramp { flex: 1; height: 10px; border-radius: 3px; background: linear-gradient(90deg, color-mix(in oklab, var(--s1) 18%, var(--panel)), var(--s1)); }
+.notes { max-width: 95ch; margin-top: 18px; font-size: 14.5px; color: var(--muted); }
+.notes h2 { font: 700 18px var(--font-ui); color: var(--ink); margin: 18px 0 6px; }
+.notes ul { padding-left: 20px; margin: 0; display: grid; gap: 4px; }
+kbd { font: 500 12px var(--font-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; background: var(--panel); color: var(--ink); }
+</style>
+
+<header>
+  <h1><small>FTC 2026–27 · BIOBUZZ · turret v7</small>Shot simulator</h1>
+  <a href="../">← Back to the turret page</a>
+</header>
+
+<div class="work">
+  <div class="stage" id="stage">
+    <div class="loading" id="loading">Loading the field…</div>
+    <div class="hud" aria-live="polite">
+      <span class="pill"><b><span class="long">To </span>opening</b><span id="hDist">–</span></span>
+      <span class="pill"><b>Launch</b><span id="hElev">–</span></span>
+      <span class="pill"><b>Exit<span class="long"> speed</span></b><span id="hSpeed">–</span></span>
+      <span class="pill" id="pRpm"><b>Motor</b><span id="hRpm">–</span></span>
+      <span class="pill" id="pSpin"><b>Spin</b><span id="hSpin">–</span></span>
+      <span class="pill" id="pCam"><b>Camera</b><span id="hCam">–</span></span>
+      <span class="pill"><b><span class="long">Speed </span>room</b><span id="hRoom">–</span></span>
+      <span class="pill" id="pPeak" title="The highest point of the ball's path for this shot"><b>Peak<span class="long"> height</span></b><span id="hPeak">–</span></span>
+      <span class="pill status" id="hStatus">–</span>
+      <button class="calc hudcalc" id="btnCalcHud" hidden>Calculate best shot (in theory)</button>
+    </div>
+    <div class="hint">Drag the robot · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>Space</kbd> fire · drag empty space to look around</div>
+  </div>
+
+  <aside class="panel" aria-label="Simulator controls">
+    <div>
+      <div class="fire">
+        <button id="btnFire">Fire 1</button><button id="btnBurst">Fire 4</button><button class="ghost" id="btnClear">Clear</button>
+      </div>
+      <div class="seg" id="segBall" style="margin-top:8px" aria-label="Ball">
+        <button data-v="Pollen" aria-pressed="true"><span class="dot" style="background:var(--pollen)"></span>Pollen</button>
+        <button data-v="Nectar" aria-pressed="false"><span class="dot" id="nectarDot" style="background:var(--nectar)"></span>Nectar</button>
+      </div>
+      <div class="label" style="margin-top:10px">Shot-to-shot variation</div>
+      <div class="seg" id="segVar"><button data-v="off" aria-pressed="false">Off</button><button data-v="real" aria-pressed="true">Realistic</button><button data-v="rough" aria-pressed="false">Rough</button></div>
+      <div class="checks" style="margin-top:6px"><label><input type="checkbox" id="cGate" checked> Firing gate: wait until the flywheel is within ±1%</label></div>
+    </div>
+    <div>
+      <div class="label">Aiming</div>
+      <div class="seg" id="segAim"><button data-v="auto" aria-pressed="true">Auto (camera)</button><button data-v="manual" aria-pressed="false">Manual</button></div>
+      <div class="aimnote" id="aimNote" aria-live="polite"></div>
+      <div class="manbox" id="manBox">
+        <div><div class="label">Turret heading (from robot front)<output id="oMY"></output></div><input type="range" id="rMY" min="-190" max="190" step="0.5" value="0"></div>
+        <div><div class="label">Launch angle<output id="oME"></output></div><input type="range" id="rME" min="55" max="85" step="0.5" value="65"></div>
+        <div><div class="label">Exit speed<output id="oMV"></output></div><input type="range" id="rMV" min="3" max="12" step="0.01" value="6"></div>
+        <button class="calc" id="btnCalc">Calculate best shot (in theory)</button>
+      </div>
+    </div>
+    <div>
+      <div class="label">Ball flight</div>
+      <div class="seg" id="segPhys"><button data-v="turret" aria-pressed="true">v7 turret (spin)</button><button data-v="simple" aria-pressed="false">Simple (no spin)</button></div>
+    </div>
+    <div class="row2">
+      <div><div class="label">Ball wear</div><div class="seg" id="segWear"><button data-v="new" aria-pressed="false">New</button><button data-v="mid" aria-pressed="true">Mid</button><button data-v="worn" aria-pressed="false">Worn</button></div></div>
+      <div><div class="label">HIVE tips at<output id="oT"></output></div><input type="range" id="rT" min="0" max="400" step="1" value="187"></div>
+    </div>
+    <div class="sub" id="cellLoad" style="font-size:13px;color:var(--muted);margin-top:-6px">In our up-CELL: 0 balls.</div>
+    <div>
+      <div class="label">Field at start</div>
+      <div class="seg" id="segStart"><button data-v="match" aria-pressed="true">Match start</button><button data-v="empty" aria-pressed="false">Empty</button></div>
+    </div>
+    <div>
+      <div class="label">Our alliance</div>
+      <div class="seg" id="segAlliance">
+        <button data-v="red" aria-pressed="true"><span class="dot" style="background:var(--nectar)"></span>Red</button>
+        <button data-v="blue" aria-pressed="false"><span class="dot" style="background:var(--nectar-blue)"></span>Blue</button>
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <div class="label">Our up-CELL faces</div>
+        <div class="seg" id="segOurFace"><button data-v="aud" aria-pressed="true">Audience</button><button data-v="rear" aria-pressed="false">Rear</button></div>
+      </div>
+      <div>
+        <div class="label">Other HIVE's</div>
+        <div class="seg" id="segOtherFace"><button data-v="aud" aria-pressed="false">Audience</button><button data-v="rear" aria-pressed="true">Rear</button></div>
+      </div>
+    </div>
+    <div class="row2">
+      <div><div class="label">Robot width<output id="oW"></output></div><input type="range" id="rW" min="10" max="18" step="0.5" value="18"></div>
+      <div><div class="label">Robot length<output id="oL"></output></div><input type="range" id="rL" min="10" max="18" step="0.5" value="18"></div>
+    </div>
+    <div class="row2">
+      <div><div class="label">Turret forward<output id="oF"></output></div><input type="range" id="rF" min="-6" max="6" step="0.5" value="0"></div>
+      <div><div class="label">Turret left<output id="oS"></output></div><input type="range" id="rS" min="-6" max="6" step="0.5" value="0"></div>
+    </div>
+    <div class="row2">
+      <div><div class="label">Robot heading<output id="oH"></output></div><input type="range" id="rH" min="-180" max="180" step="1" value="0"></div>
+      <div><div class="label">Camera tilt<output id="oC"></output></div><input type="range" id="rC" min="20" max="50" step="1" value="45"></div>
+    </div>
+    <div>
+      <div class="label">View</div>
+      <div class="seg" id="segView"><button data-v="driver" aria-pressed="true">Driver</button><button data-v="top" aria-pressed="false">Top</button><button data-v="chase" aria-pressed="false">Behind robot</button><button data-v="hive" aria-pressed="false">HIVE</button></div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="cMap" checked> Scoring map on the floor</label>
+      <div class="legend" id="mapLegend"><span>±2.5%</span><span class="ramp"></span><span>±6.5% speed room (Simple model, no spin)</span></div>
+      <div class="legend" id="mapLegend2" style="margin-top:-2px"><span class="dot" style="background:rgba(40,44,48,.45);border-radius:2px"></span><span>gray: can't score, or needs better than ±2%</span></div>
+      <label><input type="checkbox" id="cArc" checked> Show the planned path</label>
+      <label><input type="checkbox" id="cCad" checked> Walls and flowers</label>
+    </div>
+    <div class="log" id="log" aria-live="polite"><span style="color:var(--muted)">Shots appear here.</span></div>
+  </aside>
+</div>
+
+<section class="notes">
+  <h2>How it works</h2>
+  <ul>
+    <li><b>The field</b> is the official BIOBUZZ field CAD. The shot model's HIVE (opening, frame, pivot) is measured from the same CAD. The HIVEs tip when you change which way their up-CELL faces.</li>
+    <li><b>Aiming: Auto or Manual.</b> Auto works only while the Limelight can read the AprilTags under our up-CELL, like the real robot, which needs the tags to know where it is. The line from the camera to the tags turns green when it can read them. It uses the same camera check as figure 5 on the turret page: tags turned less than 65° away, inside the camera's view, and at least 12 pixels across. When the camera can't see them, aiming becomes manual: set the turret heading, launch angle and exit speed yourself, and the page tells you whether that shot goes in and which speeds would. "Calculate best shot" works out the best shot in theory and loads it into the sliders.</li>
+    <li><b>The turret aims itself</b> at our up-CELL's opening. For each spot it tries every launch angle the hood can reach, in 2° steps, and a range of exit speeds (the speed the ball leaves the wheels). It picks the angle with the most <b>speed room</b>: how far the exit speed can be off and still score.</li>
+    <li><b>The rules are the same as the turret page's figures.</b> Air drag slows the ball. A shot counts only if it enters the opening at least one ball radius from the rim, while coming down. It must not touch the other HIVE or the frame first. The page runs the same code as the Python models, checked to match them.</li>
+    <li><b>Motor rpm</b> is the flywheel motor speed for that exit speed. With the v7 turret model it comes from the turret's feed simulation for the chosen ball and wear, along with the spin and hood angle (interpolated: launch within about 0.5°, speed within about 0.8%, spin within about 10&nbsp;rpm of a fresh feed run). With the Simple model it's an estimate for a medium-worn ball ("est."). When two turret settings give the same angle and speed, the simulator uses the one with the lower wheel speed. The design plans to stay under 85% of the motor's 6000&nbsp;rpm, to leave room to spin back up between shots.</li>
+    <li><b>Expected clean-entry rate:</b> for the current shot, the page tries 400 single shots with the chosen variation and reports how many go in cleanly, with a ± range (95% confidence). "Good spot" means 80% or more, "Risky" 50–80%, "Poor" below. It assumes an empty CELL and leaves out burst slowdown and bounce-outs, so real bursts into a filling CELL do a bit worse.</li>
+    <li><b>Shot-to-shot variation</b> makes each shot a little different, like real shots. With the v7 turret model, the biggest part is ball wear: each ball is a bit newer or more worn than the turret is set for (wear 0 = new, 1 = medium, 2 = worn; this is ball stiffness, 8000 → 4000 → 1500&nbsp;N/m in the feed simulation), and the feed simulation's table (13 wear levels) gives that ball's actual launch angle, exit speed and spin. On top: wheel-speed control (Realistic: about ±1%), hood play (about ±0.7°, which moves the hood, so angle, speed and spin change together) and aim (about ±0.5°), with most shots near the middle (a bell curve). "Rough" is roughly double. A ball the feed simulation wouldn't launch at those settings shows as "didn't launch". The Simple model has no wear table, so it uses a speed scatter of about ±3% (Realistic) or ±6% (Rough) and a launch-angle scatter instead. "Off" turns off the random parts; the burst slowdown still applies. Later balls in a burst leave a little slower (burst simulation at its reference setting, 8.5&nbsp;m/s wheels: Nectar −0.45% with the firing gate, up to −1.6% without; Pollen about −0.1%), and with the gate a Nectar burst releases every 0.3&nbsp;s instead of 0.25.</li>
+    <li><b>What this shows:</b> in this model Pollen is forgiving (about 93–100% clean entries with Realistic variation) but Nectar is very sensitive to wear: at the default spot a new Nectar leaves almost 30% slower than a medium one at the same settings, and only about half of Nectar shots go in. These are model predictions, not measurements; test with a mix of new and used Nectar early.</li>
+    <li><b>The floor map</b> shows the speed room for the chosen ball and HIVE state (darker is more forgiving; gray can't score). It's the Simple model (no spin), on a grid, the same as the turret page's figure 6, so it can differ from the live numbers, especially with the v7 turret model on.</li>
+    <li><b>"Only in theory" shots:</b> from some spots, even behind the HIVE, the model finds a very high lob (up to about 3&nbsp;m) that drops almost straight down into the opening. The physics allows it, but only with the exit speed within about ±1%. Ball wear and the flywheel slowing change the exit speed by a few percent, so the simulator marks anything that needs better than ±2% as "only in theory".</li>
+    <li><b>Ball flight: v7 turret.</b> Each shot gets the backspin the v7 turret would give it, from the turret's feed simulation: for this ball and wear, it looks up the hood angle and wheel speed that produce the launch angle and exit speed, and the spin that comes out (Pollen mostly 20–140&nbsp;rpm; a new Nectar up to about 275&nbsp;rpm). Spin adds lift (the Magnus effect, using the usual rule for a slowly spinning ball; not yet measured on our foam balls). It also limits the shots to ones the turret can really throw: a medium-worn Pollen's steepest launch is about 80–82°, and in the feed model a worn Pollen tops out at about 7.9&nbsp;m/s (7.8&nbsp;m/s at the flattest hood angle), because the soft ball slips in the wheels. <b>Simple</b> turns spin and those limits off; that's the model behind the turret page's figures and the floor map.</li>
+    <li><b>Field at start: Match start</b> sets the field up as the manual does (section 10.3.1), with positions from the official field CAD: 4 Pollen in each FLOWER, 4 in each GARDEN, 3 Nectar against the back wall of each up-CELL, and 5 Nectar in each alliance area. The 3 starting Nectar weigh 124&nbsp;g, so our CELL tips after about 3 more Pollen (the field's calibration tests start the same way). Robot preloads aren't shown. "Clear" resets to the chosen start.</li>
+    <li><b>Balls in the CELL</b> stay where they land, and new balls bounce off them (roughly). A ball can go in and still bounce back out; then it doesn't count toward tipping.</li>
+    <li><b>HIVE tipping:</b> the field's calibration tests say the HIVE must not tip with 3 Nectar + 2 Pollen (174&nbsp;g) or 7 Pollen (175&nbsp;g), and must tip with 3 Nectar + 3 Pollen (199&nbsp;g), 8 Pollen (200&nbsp;g) or 4 Nectar + 2 Pollen (215&nbsp;g). By weight (Pollen 25&nbsp;g, Nectar 41&nbsp;g), that's a tip point between 175 and 199&nbsp;g; the simulator uses 187&nbsp;g. It counts only the weight: where the balls sit and how hard they land can matter on a real field. When it tips, the balls fall out and the turret aims at the new up-CELL.</li>
+    <li><b>Limits:</b> balls in the air don't hit each other; resting balls don't get pushed; the robot stands still when it shoots; the ball leaves from the turret's center at 0.33&nbsp;m up. Bounces after a miss and inside the CELL are rough, for show only. </li>
+  </ul>
+</section>
+
+<script id="simcore">/*@SIMCORE@*/</script>
+<script>window.SIM_GEOM = /*@GEOM@*/; window.SHOOT_MAP = /*@MAP@*/;</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(() => {
+  "use strict";
+  const G = window.SIM_GEOM, M = window.SHOOT_MAP, S = SimCore.make(G);
+  const PRACTICAL = 2.0;                   // % speed room below which a shot is only possible on paper
+  // HIVE calibration tests (field guidance, 2026-09-29): 3 Nectar + 2 Pollen (173.9 g) and 7 Pollen (175 g) must NOT
+  // tip; 3 Nectar + 3 Pollen (198.9 g), 8 Pollen (200 g) and 4 Nectar + 2 Pollen (215.2 g) MUST. So it tips between
+  // 175 and 199 g; the default is the middle.
+  const TIP_LO = 175, TIP_HI = 198, TIP_G = 187;
+  const IN = 0.0254, F = 1.7913, HX = G.neigh_x / 2, DEG = Math.PI / 180;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const $ = id => document.getElementById(id);
+
+  // ---------- state ----------
+  const st = {
+    alliance: "red", face: { red: "aud", blue: "rear" }, ball: "Pollen",
+    W: 18 * IN, L: 18 * IN, tf: 0, tl: 0, heading: 0,
+    x: -0.9, y: -1.0, vary: "real", gate: true, view: "driver", phys: "turret", wear: "mid", tipG: TIP_G,
+    aim: "auto", camTilt: G.camera.tilt, start: "match", man: { yaw: 0, elev: 65, v: 6 },
+  };
+  try { const s = JSON.parse(localStorage.getItem("biobuzzSim")); if (s && s.alliance) Object.assign(st, s, { face: { ...st.face, ...s.face }, man: { ...st.man, ...(s.man || {}) } }); } catch (e) {}
+  const save = () => { try { localStorage.setItem("biobuzzSim", JSON.stringify(st)); } catch (e) {} };
+
+  // frames: field (X toward blue, Y away from the audience, Z up) <-> HIVE frame of our HIVE (x toward the other
+  // HIVE, u out toward our up-CELL)
+  const other = () => (st.alliance === "red" ? "blue" : "red");
+  const fr = () => {
+    const hx = st.alliance === "red" ? -HX : HX, sx = st.alliance === "red" ? 1 : -1, t = st.face[st.alliance] === "rear" ? 1 : -1;
+    return { hx, sx, t, state: st.face[other()] === st.face[st.alliance] ? "up" : "down" };
+  };
+  const toHive = (X, Y) => { const f = fr(); return [(X - f.hx) * f.sx, Y * f.t]; };
+  const toField = (x, u, z) => { const f = fr(); return [f.hx + f.sx * x, f.t * u, z]; };
+  const turretXY = () => {
+    const c = Math.cos(st.heading), s = Math.sin(st.heading);
+    return [st.x + st.tf * c - st.tl * s, st.y + st.tf * s + st.tl * c];
+  };
+
+  // ---------- robot placement: rectangle vs the frame's floor bars / leg stubs and the walls ----------
+  const corners = () => {
+    const c = Math.cos(st.heading), s = Math.sin(st.heading), hw = st.W / 2, hl = st.L / 2;
+    return [[hl, hw], [-hl, hw], [-hl, -hw], [hl, -hw]].map(([a, b]) => [st.x + a * c - b * s, st.y + a * s + b * c]);
+  };
+  const segSeg = (p, q, r, s) => {           // min distance between 2D segments pq and rs
+    const d = (a, b, c) => { const dx = c[0] - b[0], dy = c[1] - b[1], L2 = dx * dx + dy * dy || 1e-12;
+      const t = Math.max(0, Math.min(1, ((a[0] - b[0]) * dx + (a[1] - b[1]) * dy) / L2)); return Math.hypot(a[0] - b[0] - dx * t, a[1] - b[1] - dy * t); };
+    const cr = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if (Math.sign(cr(p, q, r)) !== Math.sign(cr(p, q, s)) && Math.sign(cr(r, s, p)) !== Math.sign(cr(r, s, q))) return 0;
+    return Math.min(d(p, r, s), d(q, r, s), d(r, p, q), d(s, p, q));
+  };
+  function placement() {
+    const cs = corners();
+    if (cs.some(([X, Y]) => Math.abs(X) > F || Math.abs(Y) > F)) return "The robot is outside the field walls.";
+    const ch = cs.map(([X, Y]) => toHive(X, Y));
+    const inside = (pt) => ch.every((a, i) => { const b = ch[(i + 1) % 4]; return (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]) >= 0; })
+      || ch.every((a, i) => { const b = ch[(i + 1) % 4]; return (b[0] - a[0]) * (pt[1] - a[1]) - (b[1] - a[1]) * (pt[0] - a[0]) <= 0; });
+    for (const [a, b] of G.frame_floor_segs) {
+      if (inside(a) || inside(b)) return "The robot overlaps the HIVE frame.";
+      for (let i = 0; i < 4; i++) if (segSeg(a, b, ch[i], ch[(i + 1) % 4]) < G.frame_tube) return "The robot overlaps the HIVE frame.";
+    }
+    return null;
+  }
+
+  // ---------- solver in a worker (falls back to the page) ----------
+  let worker = null, jobId = 0, result = null, solving = false;
+  const WORKER_SRC = $("simcore").textContent + `
+    let latest = 0;
+    self.onmessage = async (e) => {
+      const d = e.data; if (d.geom) { self.G = d.geom; self.S2 = SimCore.make(d.geom); return; }
+      latest = d.id; const S2 = self.S2;
+      const spin = d.turret ? ((el, v) => { const t = S2.turretShot(d.ball, d.wear, el, v); return t ? t.spin : null; }) : 0;
+      const sv = S2.solver(d.xu, d.ball, d.state, undefined, spin, d.elevRange);
+      while (!sv.step()) { await new Promise(r => setTimeout(r, 0)); if (latest !== d.id) return; }
+      let res = sv.result();
+      if (d.turret && res.elev !== null) {          // pick among the scoring angles by hit rate (see sim_core pickShot)
+        const pk = S2.pickShot(d.xu, d.ball, d.state, d.wear, res.cands, d.V);
+        if (pk) res = { ...res, elev: pk.elev, v: pk.v, room: pk.room, p: pk.p };
+      }
+      if (res.elev === null) {       // would a launch steeper than the hood allows have scored? (too close)
+        const G = self.G, hi = G.launch[d.ball][1], els = [];
+        for (let el = hi + 1; el <= 89; el += 2) els.push(el);
+        let steep = false;
+        for (const el of els) {
+          const whys = S2.SPEEDS.filter((_, i) => i % 2 === 0).map(s => { const L = S2.launch(d.xu, el, s); return S2.judge(L.p0, L.v0, d.ball, d.state); });
+          if (whys.some(w => w === 0)) { steep = true; break; }
+          await new Promise(r => setTimeout(r, 0)); if (latest !== d.id) return;
+        }
+        res.steep = steep;
+      }
+      self.postMessage({ id: d.id, res });
+    };`;
+  try {
+    worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })));
+    worker.postMessage({ geom: G });
+    worker.onmessage = (e) => { if (curJob && e.data.id === curJob.id) onSolved(e.data.res, curJob); };
+    worker.onerror = () => { worker = null; if (solving && curJob) runOnPage(curJob); };
+  } catch (e) { worker = null; }
+  // Every change that affects a solve bumps `rev`; a job only counts if nothing changed since it was asked for (Astra:
+  // a slow "calculate" could otherwise land after the robot moved and overwrite the sliders).
+  let solveTimer = 0, jobPurpose = "auto", rev = 0, curJob = null, lastAuto = null;
+  const elevRange = () => turretMode() ? S.turretLaunchRange(st.ball, st.wear) : null;
+  // the same work as the worker, from the job's own snapshot (not the live settings)
+  const spinForJob = (job) => job.turret ? ((el, v) => { const t = S.turretShot(job.ball, job.wear, el, v); return t ? t.spin : null; }) : 0;
+  function steepCheck(job) {                  // would a launch steeper than the hood allows have scored? (too close)
+    for (let el = G.launch[job.ball][1] + 1; el <= 89; el += 2)
+      if (S.SPEEDS.filter((_, i) => i % 2 === 0).some(v => { const L = S.launch(job.xu, el, v); return S.judge(L.p0, L.v0, job.ball, job.state) === 0; })) return true;
+    return false;
+  }
+  function runOnPage(job) {                   // no worker (or it failed): the same search, in slices on the page
+    const sv = S.solver(job.xu, job.ball, job.state, undefined, spinForJob(job), job.elevRange);
+    const tick = () => { if (job.id !== jobId) return;
+      if (sv.step()) { let res = sv.result(); if (res.elev === null) res.steep = steepCheck(job);
+        else if (job.turret) { const pk = S.pickShot(job.xu, job.ball, job.state, job.wear, res.cands, job.V); if (pk) res = { ...res, elev: pk.elev, v: pk.v, room: pk.room, p: pk.p }; }
+        onSolved(res, job); } else setTimeout(tick, 0); };
+    tick();
+  }
+  function requestSolve(purpose = "auto") {
+    clearTimeout(solveTimer);
+    solveTimer = setTimeout(() => {
+      const bad = placement();
+      if (purpose === "auto") result = null;
+      if (bad) { solving = false; if (purpose === "calc") calcNote = "Move the robot to a legal spot first."; showResult(); return; }
+      const [TX, TY] = turretXY(), f = fr();
+      const job = curJob = { id: ++jobId, rev, purpose, xu: toHive(TX, TY), ball: st.ball, state: f.state, turret: turretMode(), wear: st.wear, elevRange: elevRange(), V: VARY[st.vary] || VARY.real };
+      jobPurpose = purpose; solving = true; showResult();
+      if (worker) worker.postMessage(job); else runOnPage(job);
+    }, purpose === "auto" ? 90 : 0);
+  }
+  function onSolved(res, job) {
+    if (!job || job.id !== jobId || job.rev !== rev) return;   // stale: something changed since it was asked for
+    solving = false;
+    if (job.purpose === "calc") {             // load the best shot into the manual controls
+      calcNote = res.elev == null ? "No launch angle and speed scores from here, even in theory." :
+        `Best shot in theory: ${res.elev.toFixed(0)}°, ${res.v.toFixed(2)} m/s, ±${res.room.toFixed(1)}% speed room. Loaded into the sliders.`;
+      if (res.elev != null) { st.man = { yaw: aimYawRel(), elev: res.elev, v: +res.v.toFixed(2) }; syncManual(); }
+      evalMode(); manualEval(); showResult(); save(); return;
+    }
+    result = res;
+    if (res.elev != null) lastAuto = { yaw: aimYawRel(), elev: res.elev, v: +res.v.toFixed(2) };   // what manual takes over from
+    showResult();
+  }
+
+  // ---------- ball flight: the v7 turret's spin and reach (feed simulation), or the simple model (no spin) ----------
+  const turretMode = () => st.phys === "turret";
+  const spinFn = () => turretMode() ? ((el, v) => { const t = S.turretShot(st.ball, st.wear, el, v); return t ? t.spin : null; }) : 0;
+  const spinAt = (el, v) => { const f = spinFn(); return typeof f === "function" ? f(el, v) : 0; };
+
+  // ---------- aiming: auto when the camera can read our target's tags, otherwise manual ----------
+  let eff = "auto", camNow = null, camWhy = "", man = null, calcNote = "";
+  const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+  function aimYawField() { const [TX, TY] = turretXY(), [ox, oy] = toField(0, G.uc, 0); return Math.atan2(oy - TY, ox - TX); }
+  const aimYawRel = () => Math.round(wrap(aimYawField() - st.heading) / DEG * 2) / 2;
+  const manYawField = () => st.heading + st.man.yaw * DEG;
+  function hiveDir(yawField) { const f = fr(); return [f.sx * Math.cos(yawField), f.t * Math.sin(yawField)]; }
+  const shotYawField = () => eff === "auto" ? aimYawField() : manYawField();
+  function evalMode() {
+    const [TX, TY] = turretXY(), xu = toHive(TX, TY), was = eff;
+    const autoCam = S.seesTarget(xu, hiveDir(aimYawField()), st.camTilt);
+    if (st.aim === "auto" && autoCam.seen && !placement()) { eff = "auto"; camNow = autoCam; camWhy = ""; }
+    else {
+      eff = "manual";
+      camWhy = st.aim === "auto" ? autoCam.why : "";
+      // keep where the turret is pointing now, and the last auto launch angle and speed
+      if (was === "auto" && lastAuto) { st.man = { yaw: aimYawRel(), elev: lastAuto.elev, v: lastAuto.v }; syncManual(); }
+      camNow = S.seesTarget(xu, hiveDir(manYawField()), st.camTilt);
+    }
+    $("manBox").classList.toggle("locked", eff === "auto");
+    ["rMY", "rME", "rMV"].forEach(id => { $(id).disabled = eff === "auto"; });
+    $("btnCalc").hidden = eff === "auto"; $("btnCalcHud").hidden = eff === "auto";
+  }
+  // the manual shot: does it score exactly as set? How far can the speed drop or rise and still score (bisected edges)?
+  // If it misses, the nearest run of scoring speeds over the slider's whole range (Astra: exact result, real margins).
+  function manualEval() {
+    if (placement()) { man = null; return; }
+    const [TX, TY] = turretXY(), xu = toHive(TX, TY), dir = hiveDir(manYawField()), f = fr(), el = +st.man.elev, v0 = +st.man.v;
+    const judgeAt = (v) => { const sp = spinAt(el, v); if (sp === null) return 5;
+      const L = S.launchDir(xu, el, v, dir); return S.judge(L.p0, L.v0, st.ball, f.state, 1e-3, 2.0, sp); };
+    const edge = (inV, outV) => { for (let k = 0; k < 14; k++) { const m = (inV + outV) / 2; if (judgeAt(m) === 0) inV = m; else outV = m; } return inV; };
+    const why = judgeAt(v0);
+    if (why === 0) {
+      let a = v0, b = v0;
+      while (a > 3 && judgeAt(a - 0.03) === 0) a -= 0.03;
+      while (b < 12 && judgeAt(b + 0.03) === 0) b += 0.03;
+      const lo = edge(a, Math.max(2.99, a - 0.03)), hi = edge(b, Math.min(12.01, b + 0.03));
+      man = { why, lo, hi, down: 100 * (v0 - lo) / v0, up: 100 * (hi - v0) / v0 };
+      return;
+    }
+    const grid = []; for (let x = 3; x <= 12.0001; x += 0.03) grid.push(x);
+    const ok = grid.map(x => judgeAt(x) === 0), runs = [];
+    ok.forEach((g, i) => { if (g) { if (i && ok[i - 1]) runs[runs.length - 1][1] = grid[i]; else runs.push([grid[i], grid[i]]); } });
+    const near = runs.sort((p, q) => Math.min(Math.abs(p[0] - v0), Math.abs(p[1] - v0)) - Math.min(Math.abs(q[0] - v0), Math.abs(q[1] - v0)))[0];
+    man = { why, sug: near || null };
+  }
+  function syncManual() {
+    const r = elevRange(), e0 = r ? Math.ceil(r[0] * 2) / 2 : G.launch[st.ball][0], e1 = r ? Math.floor(r[1] * 2) / 2 : G.launch[st.ball][1];
+    st.man.elev = Math.min(e1, Math.max(e0, st.man.elev));
+    $("rME").min = e0; $("rME").max = e1;
+    $("rMY").value = st.man.yaw; $("rME").value = st.man.elev; $("rMV").value = st.man.v;
+    $("oMY").textContent = `${(+st.man.yaw).toFixed(1)}°`; $("oME").textContent = `${(+st.man.elev).toFixed(1)}°`;
+    const m = rpmFor(st.man.v, st.man.elev);
+    $("oMV").textContent = `${(+st.man.v).toFixed(2)} m/s ` + (m.rpm == null ? "(out of the turret's reach)" : `≈ ${Math.round(m.rpm / 10) * 10} rpm`);
+  }
+  // exit speed -> flywheel motor rpm, one rule for every readout (Astra: the slider and the pill used to disagree).
+  // Turret model: the wheel speed the turret table needs for this ball, wear and angle (null: can't throw it).
+  // Simple model: the medium-worn straight-line fit, labelled as an estimate.
+  function rpmFor(v, el) {
+    if (turretMode()) {
+      const t = el != null ? S.turretShot(st.ball, st.wear, el, v) : null;
+      return t ? { rpm: t.surface / (Math.PI * G.wheel_d) * 60 * G.belt_ratio, spin: t.spin, hood: t.hood } : { rpm: null };
+    }
+    return { rpm: motorRpm(v, st.ball), estimate: true };
+  }
+
+  // ---------- readout ----------  // ---------- readout ----------
+  // exit speed -> flywheel motor rpm: the feed simulation's straight-line fit (medium-worn ball), then the wheel and belt
+  function motorRpm(vExit, ball) {
+    const f = G.exit_fit[ball], surface = (vExit - f.c) / f.k;
+    return surface / (Math.PI * G.wheel_d) * 60 * G.belt_ratio;
+  }
+  const fmtM = m => `${m.toFixed(2)} m (${Math.round(m / IN)} in)`;
+  const rpmPill = (v, el) => {
+    const R_ = rpmFor(v, el), m = R_.rpm, pct = m == null ? 0 : 100 * m / G.motor_free_rpm;
+    $("hSpin").textContent = !turretMode() ? "off (Simple model)" : m == null ? "out of reach" : `${R_.spin >= 0 ? "" : "top "}${Math.round(Math.abs(R_.spin))} rpm, hood ${R_.hood.toFixed(0)}°`;
+    if (m == null) { $("hRpm").textContent = "can't reach"; $("pRpm").title = "The v7 turret can't throw this ball at this angle and speed"; $("pRpm").style.borderColor = "var(--bad)"; return; }
+    $("hRpm").textContent = `≈${Math.round(m / 10) * 10} rpm (${Math.round(pct)}%)` + (R_.estimate ? " est." : "");
+    $("pRpm").title = pct > 100 ? "Faster than the motor can spin" : pct > 85 ? "Above the 85% the design plans for (it needs room to spin back up between shots)"
+      : R_.estimate ? "Simple model: estimate for a medium-worn ball" : "From the v7 turret's feed simulation, for this ball and wear";
+    $("pRpm").style.borderColor = pct > 100 ? "var(--bad)" : pct > 85 ? "var(--accent)" : "";
+  };
+  function showResult() {
+    const [TX, TY] = turretXY(), [x, u] = toHive(TX, TY);
+    $("hDist").textContent = fmtM(Math.hypot(x, u - G.uc));
+    const s = $("hStatus"), badPlace = placement();
+    s.className = "pill status";
+    $("hCam").textContent = camNow && camNow.seen ? "sees the tags" : "can't see the tags";
+    $("pCam").style.borderColor = camNow && camNow.seen ? "var(--good)" : "";
+    const note = $("aimNote");
+    if (eff === "auto") note.innerHTML = "The camera reads our target's tags, so the turret aims itself and picks the angle and speed.";
+    else if (st.aim === "auto") note.innerHTML = `<b>The camera can't see our target's tags</b> (${camWhy || "not in view"}), so aiming is manual. Turn the turret toward the HIVE, or use the button to work out the best shot in theory.` + (calcNote ? `<br>${calcNote}` : "");
+    else note.innerHTML = "Manual aiming: set the turret heading, launch angle and exit speed." + (calcNote ? `<br>${calcNote}` : "");
+    const dash = () => ["hElev", "hSpeed", "hRoom", "hRpm", "hSpin"].forEach(k => $(k).textContent = "–");
+    if (badPlace) { s.textContent = badPlace; s.classList.add("bad"); dash(); updateAim(); return; }
+    if (eff === "manual") {
+      $("hElev").textContent = `${(+st.man.elev).toFixed(1)}°`;
+      $("hSpeed").textContent = `${(+st.man.v).toFixed(2)} m/s`;
+      rpmPill(st.man.v, st.man.elev);
+      if (!man) { $("hRoom").textContent = "…"; s.textContent = "Checking the shot…"; }
+      else if (man.why === 0) {
+        const worst = Math.min(man.down, man.up);
+        $("hRoom").textContent = `−${man.down.toFixed(1)}% / +${man.up.toFixed(1)}%`;
+        s.textContent = `Manual shot: goes in. The speed can be ${man.down.toFixed(1)}% lower or ${man.up.toFixed(1)}% higher (${man.lo.toFixed(2)}–${man.hi.toFixed(2)} m/s).`
+          + (worst < PRACTICAL ? ` That's under the ±${PRACTICAL}% this simulator assumes the turret can hold, so treat it as theory.` : "") + rateText();
+        const hr = hitRate(); s.classList.add((hr ? hr.p >= 0.8 : worst >= 3) ? "ok" : "bad");
+      } else {
+        $("hRoom").textContent = "misses";
+        const words = { 1: "misses", 2: "touches the rim", 3: "is blocked by the other HIVE", 4: "hits the frame or the CELL",
+          5: `can't be launched: the v7 turret can't throw a ${st.wear === "mid" ? "medium-worn" : st.wear} ${st.ball} at this angle and speed` };
+        const g = man.sug;
+        s.textContent = `Manual shot: ${words[man.why] || "misses"}.` + (g ? ` At this angle and heading, try ${g[1] - g[0] < 0.015 ? "about " + g[0].toFixed(2) + " m/s (a very narrow window)" : g[0].toFixed(2) + "–" + g[1].toFixed(2) + " m/s"}.` : " None of the speeds tried (every 0.03 m/s from 3 to 12) scores at this angle and heading.");
+        s.classList.add("bad");
+      }
+      updateAim(); return;
+    }
+    if (solving || !result) { s.textContent = "Working out the best shot…"; ["hElev", "hSpeed", "hRoom", "hRpm"].forEach(k => $(k).textContent = "…"); updateAim(); return; }
+    if (result.elev === null) {
+      dash();
+      s.textContent = result.steep ? "Too close: it needs a steeper launch than the hood allows." :
+        (result.tally[3] || result.tally[4]) && result.free > 0 ? "Blocked: the other HIVE or the frame is in the way." :
+        turretMode() && result.tally[5] > 0.5 * (result.tally[1] + result.tally[2] + result.tally[3] + result.tally[4] + result.tally[5]) ? "The v7 turret can't throw this ball the way this spot needs (angle or speed out of its reach)."
+        : "No scoring shot found among the angles and speeds tried.";
+      s.classList.add("bad");
+    } else {
+      $("hElev").textContent = `${result.elev.toFixed(0)}°`;
+      $("hSpeed").textContent = `${result.v.toFixed(2)} m/s`;
+      rpmPill(result.v, result.elev);
+      $("hRoom").textContent = `±${result.room.toFixed(1)}%`;
+      const lost = result.free - result.room;
+      // PRACTICAL: the turret's exit speed varies by a few percent (ball wear, flywheel slowing), so a shot that needs
+      // better than +/-2% is only possible on paper. With variation on, the clean-entry rate decides the verdict.
+      const [lead, cls] = verdict(result.room);
+      s.textContent = lead + (hitRate() && result.room < PRACTICAL ? ` The ideal shot needs the speed within ±${result.room.toFixed(1)}%.` : "");
+      if (lost > 0.5) s.textContent += ` The HIVE structure takes away ${lost.toFixed(1)} percentage points of room.`;
+      if (turretMode()) s.textContent += st.vary === "off" ? " (Angles tried 2° apart; the lowest speed of the near-best ones.)" : " (Angles tried 2° apart; picked the one that scores most often with this variation.)";
+      s.textContent += rateText();
+      s.classList.remove("ok", "bad"); s.classList.add(cls);
+    }
+    updateAim();
+  }
+
+  // ---------- three.js scene ----------
+  const stage = $("stage");
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  stage.appendChild(renderer.domElement);
+  renderer.domElement.tabIndex = 0;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 60);
+  camera.up.set(0, 0, 1);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.495; controls.minDistance = 0.6; controls.maxDistance = 14;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x667788, 0.85));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(-2, -3, 6); scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(3, 2, 3); scene.add(fill);
+  const applyTheme = () => {
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+    scene.background = new THREE.Color(dark ? 0x0b0f12 : 0xd9e0e5);
+  };
+  applyTheme(); matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+  // tiles: 6 x 6 gray foam, the CAD's size
+  {
+    const c = document.createElement("canvas"); c.width = c.height = 1024; const g = c.getContext("2d");
+    g.fillStyle = "#6f757b"; g.fillRect(0, 0, 1024, 1024);
+    g.strokeStyle = "#5a6066"; g.lineWidth = 3;
+    for (let i = 1; i < 6; i++) { const p = i * 1024 / 6; g.beginPath(); g.moveTo(p, 0); g.lineTo(p, 1024); g.moveTo(0, p); g.lineTo(1024, p); g.stroke(); }
+    const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(2 * 1.7929, 2 * 1.7929), new THREE.MeshLambertMaterial({ map: tex }));
+    scene.add(floor);
+  }
+  // scoring-map overlay (canvas texture on the floor)
+  const mapCanvas = document.createElement("canvas"); mapCanvas.width = mapCanvas.height = 1024;
+  const mapTex = new THREE.CanvasTexture(mapCanvas); mapTex.encoding = THREE.sRGBEncoding;
+  const mapMesh = new THREE.Mesh(new THREE.PlaneGeometry(2 * 1.7929, 2 * 1.7929), new THREE.MeshBasicMaterial({ map: mapTex, transparent: true, depthWrite: false }));
+  mapMesh.position.z = 0.003; scene.add(mapMesh);
+  function drawMap() {
+    const g = mapCanvas.getContext("2d"), N = 1024, E = 1.7929;
+    g.clearRect(0, 0, N, N);
+    mapMesh.visible = $("cMap").checked; ["mapLegend", "mapLegend2"].forEach(k => $(k).style.display = mapMesh.visible ? "" : "none");
+    if (!mapMesh.visible) { mapTex.needsUpdate = true; return; }
+    const key = `${st.ball}-${fr().state}`, ds = M.dists, bw = 2.5;
+    const edge = i => i <= 0 ? ds[0] - (ds[1] - ds[0]) / 2 : i >= ds.length ? ds[ds.length - 1] + (ds[ds.length - 1] - ds[ds.length - 2]) / 2 : (ds[i - 1] + ds[i]) / 2;
+    const P = (d, b) => { const [X, Y] = toField(d * Math.sin(b * DEG), G.uc + d * Math.cos(b * DEG), 0); return [(X + E) / (2 * E) * N, (E - Y) / (2 * E) * N]; };
+    const s1 = css("--s1") || "#2a78d6";
+    const rgb = (h) => { const v = parseInt(h.replace("#", ""), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+    const [r1, g1, b1] = rgb(s1.length === 7 ? s1 : "#2a78d6");
+    for (const r of M.rows) {
+      if (r.frame) continue;
+      const i = ds.indexOf(r.d), a0 = Math.max(edge(i), 0.1), a1 = edge(i + 1), pts = [];
+      for (let k = 0; k <= 4; k++) pts.push(P(a0, r.b - bw + k * bw / 2));
+      for (let k = 4; k >= 0; k--) pts.push(P(a1, r.b - bw + k * bw / 2));
+      const w = r[key] ? r[key][1] : 0;
+      if (w >= PRACTICAL) { const t = 0.18 + 0.82 * Math.min(Math.max((w - 2.5) / 4, 0), 1); g.fillStyle = `rgba(${r1},${g1},${b1},${(0.25 + 0.6 * t).toFixed(3)})`; }
+      else g.fillStyle = "rgba(40,44,48,0.35)";
+      g.beginPath(); pts.forEach(([px, py], k) => k ? g.lineTo(px, py) : g.moveTo(px, py)); g.closePath(); g.fill();
+    }
+    mapTex.needsUpdate = true;
+  }
+
+  // field CAD
+  const hives = { red: new THREE.Group(), blue: new THREE.Group() }, hiveAngle = { red: 0, blue: 0 };
+  hives.red.position.set(-HX, 0, G.pivot_z); hives.blue.position.set(HX, 0, G.pivot_z);
+  scene.add(hives.red, hives.blue);
+  const cadExtras = new THREE.Group(); scene.add(cadExtras);
+  // the CAD is drawn with red's up-CELL facing the audience and blue's facing the rear wall
+  const targetAngle = (h) => h === "red" ? (st.face.red === "aud" ? 0 : 60 * DEG) : (st.face.blue === "rear" ? 0 : -60 * DEG);
+  // field.glb normally; hosts that don't serve .glb get the same file as base64 text (field.glb.b64.txt)
+  const onField = (gl) => {
+    const kids = [...gl.scene.children];
+    for (const n of kids) {
+      // the file has no normals (it's shaded flat): let three work them out per face
+      n.traverse(o => { if (o.isMesh) { const m = o.material; o.geometry.computeVertexNormals();
+        o.material = new THREE.MeshPhongMaterial({ color: m.color, transparent: m.transparent, opacity: m.opacity, side: THREE.DoubleSide,
+          depthWrite: !m.transparent, flatShading: true, shininess: 12 }); } });
+      const h = /^(hive_.*|tag)_(red|blue)$/.exec(n.name);       // HIVE parts and its AprilTags turn with it
+      if (h) { n.position.set(0, 0, 0); hives[h[2]].add(n); }
+      else if (/^(wall|flower|tray|misc)/.test(n.name)) cadExtras.add(n);
+      else scene.add(n);
+    }
+    $("loading").remove();
+  };
+  const fieldFail = () => { $("loading").textContent = "Couldn't load the field model (field.glb)."; };
+  new THREE.GLTFLoader().load("field.glb", onField, undefined, () => {
+    fetch("field.glb.b64.txt").then(r => { if (!r.ok) throw 0; return r.text(); }).then(t => {
+      const bin = atob(t.trim()), buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      new THREE.GLTFLoader().parse(buf.buffer, "", onField, fieldFail);
+    }).catch(fieldFail);
+  });
+
+  // our opening, outlined
+  const rimLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffd63b }));
+  scene.add(rimLine);
+  function drawRim() {
+    const pts = S.RIM.map(([a]) => new THREE.Vector3(...toField(a[0], a[1], a[2])));
+    rimLine.geometry.setFromPoints(pts);
+  }
+
+  // robot
+  const robot = new THREE.Group(); scene.add(robot);
+  const chassisMat = new THREE.MeshLambertMaterial({ color: 0x2b3137 });
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), chassisMat); robot.add(chassis);
+  const bumper = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineBasicMaterial({ color: 0xcf2f27 }));
+  robot.add(bumper);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 3), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  nose.rotation.z = -Math.PI / 2; robot.add(nose);
+  const turret = new THREE.Group(); robot.add(turret);
+  const tMat = new THREE.MeshLambertMaterial({ color: 0xc8a472 }), dMat = new THREE.MeshLambertMaterial({ color: 0x3a3f45 });
+  { const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 40), dMat); ring.rotation.x = Math.PI / 2; ring.position.z = 0.215; turret.add(ring);
+    for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.012, 0.19), tMat); p.position.set(-0.01, s * 0.1, 0.315); turret.add(p); }
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.19, 28), new THREE.MeshLambertMaterial({ color: 0x1b1d20 })); wheel.position.set(0, 0, 0.30); turret.add(wheel); }
+  const hood = new THREE.Group(); hood.position.set(0, 0, 0.30); turret.add(hood);
+  { const h = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.012), tMat); h.position.set(0.0, 0, 0.075); hood.add(h); }
+  const robotMat = { red: 0xcf2f27, blue: 0x2a66c9 };
+  function placeRobot() {
+    robot.position.set(st.x, st.y, 0); robot.rotation.z = st.heading;
+    const h = 0.18;
+    chassis.scale.set(st.L, st.W, h); chassis.position.set(0, 0, 0.02 + h / 2);
+    bumper.scale.copy(chassis.scale); bumper.position.copy(chassis.position);
+    bumper.material.color.setHex(robotMat[st.alliance]);
+    nose.position.set(st.L / 2 - 0.03, 0, 0.2 + 0.01);
+    turret.position.set(st.tf, st.tl, 0);
+    const bad = placement(); chassisMat.color.setHex(bad ? 0x7a2a26 : 0x2b3137);
+  }
+  // the active shot: auto (solver result, aimed at the opening centre) or manual (the sliders)
+  function shot() {
+    if (placement()) return null;
+    if (eff === "manual") {
+      const sh = { yaw: manYawField(), elev: +st.man.elev, v: +st.man.v };
+      if (turretMode() && !S.turretShot(st.ball, st.wear, sh.elev, sh.v)) sh.unreachable = true;
+      return sh;
+    }
+    return result && result.elev != null ? { yaw: aimYawField(), elev: result.elev, v: result.v } : null;
+  }
+  function updateAim() {
+    const sh = shot(), yaw = sh ? sh.yaw : shotYawField();
+    turret.rotation.z = yaw - st.heading;
+    hood.rotation.y = (90 - (sh ? sh.elev : 60)) * DEG;   // the hood plate points along the launch direction
+    drawArc(); drawSight(); showPeak();
+  }
+  // how high the ball goes on the shot as set (the apex of its path; check the venue's ceiling and lights)
+  function showPeak() {
+    const sh = shot();
+    if (!sh || sh.unreachable) { $("hPeak").textContent = "–"; return; }
+    const [TX, TY] = turretXY(), xu = toHive(TX, TY), L = S.launchDir(xu, sh.elev, sh.v, hiveDir(sh.yaw));
+    const fl = S.fly(L.p0, L.v0, st.ball, fr().state, { every: 1 / 200, tmax: 2.5, spin: spinAt(sh.elev, sh.v) || 0 });
+    let top = 0; for (const q of fl.path) top = Math.max(top, q[3]);
+    $("hPeak").textContent = `${top.toFixed(2)} m (${Math.round(top / IN)} in)`;
+  }
+  // the camera's line of sight to our target's tag cluster: green when it can read them
+  const sightOk = new THREE.LineBasicMaterial({ color: 0x3cc47a }), sightNo = new THREE.LineDashedMaterial({ color: 0x9aa3ab, dashSize: 0.04, gapSize: 0.04 });
+  const sight = new THREE.Line(new THREE.BufferGeometry(), sightOk); scene.add(sight);
+  const camBox = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.05), new THREE.MeshLambertMaterial({ color: 0x1b1d20 }));
+  camBox.position.set(0.10, 0, 0.40 - 0.0); turret.add(camBox);
+  function drawSight() {
+    const [TX, TY] = turretXY();
+    const a = new THREE.Vector3(TX, TY, G.camera.h), b = new THREE.Vector3(...toField(...G.camera.target_p));
+    sight.geometry.dispose(); sight.geometry = new THREE.BufferGeometry().setFromPoints([a, b]);
+    sight.material = camNow && camNow.seen ? sightOk : sightNo; sight.computeLineDistances();
+    camBox.rotation.y = -st.camTilt * DEG;
+  }
+
+  // planned path (dashed) and balls
+  const arcMat = new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.05, gapSize: 0.035, transparent: true, opacity: 0.8 });
+  const arc = new THREE.Line(new THREE.BufferGeometry(), arcMat); scene.add(arc);
+  function drawArc() {
+    arc.visible = false;
+    const sh = shot();
+    if (!$("cArc").checked || !sh || sh.unreachable) return;
+    const [TX, TY] = turretXY(), xu = toHive(TX, TY), L = S.launchDir(xu, sh.elev, sh.v, hiveDir(sh.yaw));
+    const fl = S.fly(L.p0, L.v0, st.ball, fr().state, { every: 1 / 90, tmax: 1.6, spin: spinAt(sh.elev, sh.v) || 0 });
+    const pts = []; for (const [, x, u, z] of fl.path) { pts.push(new THREE.Vector3(...toField(x, u, z))); if (pts.length > 2 && z < 0.1) break; }
+    arc.geometry.dispose(); arc.geometry = new THREE.BufferGeometry().setFromPoints(pts); arc.computeLineDistances(); arc.visible = true;
+  }
+  const balls = [];
+  // Shot-to-shot variation (1 sigma; "±" in the notes means about 2 sigma). v7 turret model: each ball's wear differs a
+  // little from what the turret is set for (0 new, 1 medium, 2 worn), and the feed-simulation table gives that ball's
+  // actual launch angle, exit speed and spin; plus wheel-speed control, hood and aim scatter. Simple model: no wear
+  // table, so a larger speed scatter stands in for it.
+  // wear: wear-index sigma; spd: wheel-speed control, % sigma; hood: hood play, deg sigma (moves the hood, so launch
+  // angle, speed and spin change together); ang: launch-angle scatter for the Simple model; aim: deg sigma; simple: % speed
+  const VARY = { off: { wear: 0, spd: 0, hood: 0, ang: 0, aim: 0, simple: 0 },
+                 real: { wear: 0.25, spd: 0.5, hood: 0.35, ang: 0.35, aim: 0.25, simple: 1.5 },
+                 rough: { wear: 0.6, spd: 1.2, hood: 0.8, ang: 0.8, aim: 0.6, simple: 3.0 } };
+  const normal = () => { let u = 0; while (u === 0) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random()); };
+  const ballTex = {};
+  function ballMaterial(hex) {                 // a stripe and a few dots, so you can see the ball turn
+    if (!ballTex[hex]) {
+      const c = document.createElement("canvas"); c.width = 128; c.height = 64; const g = c.getContext("2d");
+      const col = new THREE.Color(hex), dark = col.clone().multiplyScalar(0.62);
+      g.fillStyle = "#" + col.getHexString(); g.fillRect(0, 0, 128, 64);
+      g.fillStyle = "#" + dark.getHexString(); g.fillRect(0, 0, 10, 64); g.fillRect(64, 0, 10, 64);
+      for (const [x, y] of [[32, 20], [96, 44], [40, 50], [100, 14]]) { g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); }
+      ballTex[hex] = new THREE.CanvasTexture(c); ballTex[hex].encoding = THREE.sRGBEncoding;
+    }
+    return new THREE.MeshLambertMaterial({ map: ballTex[hex] });
+  }
+  const ballColor = () => st.ball === "Pollen" ? 0xe9b824 : (st.alliance === "red" ? 0xcf2f27 : 0x2a66c9);
+  let shotNo = 0;
+  // One shot's random variation (the same model for Fire and for the expected-hit-rate estimate). k: position in a burst.
+  function sampleShot(sh, k = 0) {
+    const V = VARY[st.vary] || VARY.real, gateKey = st.gate !== false ? "gate" : "nogate";
+    // later balls in a burst leave a little slower (burst simulation, at its reference setting: 8.5 m/s wheels, hood 0,
+    // medium balls): applied to the ball's exit speed
+    const drop = ((G.burst[gateKey][st.ball].drop_pct[Math.min(3, k)] || 0) / 100);
+    let elev = sh.elev, v = sh.v, yaw = sh.yaw, spin = 0, wearNote = "";
+    if (turretMode()) {
+      const act = S.variedTurret(st.ball, st.wear, sh.elev, sh.v, V, normal);     // this ball's wear, hood play, wheel speed
+      if (V.wear && act) wearNote = `, ball wear ${act.w.toFixed(1)}`;
+      if (!act || act.failed) return { failed: true, wearNote };                         // the feed sim doesn't launch this ball like that
+      elev = act.launch; v = act.exit * (1 + drop); spin = act.spin;
+    } else { v = sh.v * (1 + normal() * V.simple / 100) * (1 + drop); elev += normal() * V.ang; }
+    yaw += normal() * V.aim * DEG;
+    return { elev, v, yaw, spin, wearNote };
+  }
+  // Expected clean-entry rate for the current shot: 400 single shots with the chosen variation, judged by the shot check
+  // (empty CELL, no burst slowdown, no bounce-outs). p and its 95% half-width. Remembered until something changes.
+  let rateMemo = { key: "", rate: null };
+  function hitRate() {
+    const sh = shot();
+    if (!sh || sh.unreachable || st.vary === "off") return null;
+    const [TX, TY] = turretXY(), xu = toHive(TX, TY), f = fr();
+    const key = [xu, sh.elev, sh.v, sh.yaw, f.sx, f.t, st.ball, st.wear, st.vary, st.phys, f.state].join("|");
+    if (rateMemo.key === key) return rateMemo.rate;
+    let hit = 0; const N = 400;
+    for (let n = 0; n < N; n++) {
+      const q = sampleShot(sh); if (q.failed) continue;
+      const L = S.launchDir(xu, q.elev, q.v, hiveDir(q.yaw));
+      if (S.judge(L.p0, L.v0, st.ball, f.state, 1e-3, 2.0, q.spin) === 0) hit++;
+    }
+    const p = hit / N;
+    rateMemo = { key, rate: { p, half: 1.96 * Math.sqrt(Math.max(p * (1 - p), 0.25 / N) / N) } };
+    return rateMemo.rate;
+  }
+  const rateText = () => { const r = hitRate(); return r == null ? "" :
+    ` With ${st.vary === "rough" ? "Rough" : "Realistic"} variation, about ${Math.round(100 * r.p)}% (±${Math.max(1, Math.round(100 * r.half))}) of single shots go in cleanly (empty CELL).`; };
+  // one verdict drives both the words and the colour
+  function verdict(room) {
+    const r = hitRate();
+    if (r) return r.p >= 0.8 ? ["Good spot.", "ok"] : r.p >= 0.5 ? ["Risky spot.", "bad"] : ["Poor spot.", "bad"];
+    return room >= 3 ? ["Good spot.", "ok"] : room >= PRACTICAL ? ["Tight: the speed must be quite exact.", "bad"]
+      : [`Only in theory: the speed would have to be within ±${room.toFixed(1)}%, under the ±${PRACTICAL}% this simulator assumes the turret can hold.`, "bad"];
+  }
+  function fire(k = 0) {                      // k: position in a burst (the flywheel slows a little for later balls)
+    const sh = shot();
+    if (!sh) return;
+    if (sh.unreachable) {
+      const line = document.createElement("div"); line.innerHTML = `<span class="out">Not fired: the v7 turret can't throw a ${st.ball} at ${sh.elev.toFixed(1)}° and ${sh.v.toFixed(2)} m/s.</span>`;
+      const log = $("log"); if (!shotNo) log.innerHTML = ""; log.prepend(line); return;
+    }
+    const smp = sampleShot(sh, k);
+    if (smp.failed) {
+      shotNo++;
+      const line = document.createElement("div"); line.innerHTML = `#${shotNo} ${st.ball}${smp.wearNote}: <span class="out">didn't launch (the feed simulation doesn't throw this ball at these settings)</span>`;
+      const log = $("log"); if (shotNo === 1) log.innerHTML = ""; log.prepend(line); return;
+    }
+    const { elev, v, yaw, spin, wearNote } = smp;
+    const [TX, TY] = turretXY(), xu = toHive(TX, TY), L = S.launchDir(xu, elev, v, hiveDir(yaw)), f = fr();
+    const why = S.judge(L.p0, L.v0, st.ball, f.state, 1e-3, 2.0, spin);
+    const walls = wallsFor();
+    // balls already headed for (or resting in) our CELL, including earlier balls of this burst still in the air
+    const others = balls.filter(b => b.hive === st.alliance && b.gen === gen[st.alliance] && b.inCell && b.end && (b.mode === undefined || b.mode === "cell")).map(b => [...b.end, b.r]);
+    const fl = S.fly(L.p0, L.v0, st.ball, f.state, { walls, spin, others });
+    for (let n = 0; n < 5 && fl.inCell && !fl.settled; n++) {                // still rolling in the CELL: carry on
+      const more = S.fly(fl.end, fl.vEnd, st.ball, f.state, { walls, spin: 0, others, startInCell: true, tmax: 4 });
+      const t0 = fl.path[fl.path.length - 1][0];
+      fl.path.push(...more.path.slice(1).map(q => [q[0] + t0, ...q.slice(1)]));
+      Object.assign(fl, { inCell: more.inCell, settled: more.settled, end: more.end, vEnd: more.vEnd, hitBall: fl.hitBall || more.hitBall });
+    }
+    const r = G.balls[st.ball].r;
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), ballMaterial(ballColor()));
+    mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    // field frame; contact normals too (a vector: (x, u) -> (sx*x, t*u))
+    const path = fl.path.map(([t, x, u, z, nx, nu, nz]) => [t, ...toField(x, u, z), f.sx * nx, f.t * nu, nz]);
+    const d0 = hiveDir(yaw), dxy = [f.sx * d0[0], f.t * d0[1]];    // launch direction on the field
+    const spinAxis = new THREE.Vector3(dxy[1], -dxy[0], 0).normalize(), spinRate = spin * 2 * Math.PI / 60;  // backspin: axis = d x z
+    const vEnd = new THREE.Vector3(f.sx * fl.vEnd[0], f.t * fl.vEnd[1], fl.vEnd[2]);
+    mesh.position.set(path[0][1], path[0][2], path[0][3]); scene.add(mesh);
+    const trail = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: ballColor(), transparent: true, opacity: 0.55 }));
+    scene.add(trail);
+    balls.push({ mesh, trail, path, t0: performance.now() / 1000, k: 0, inCell: fl.inCell, settled: fl.settled, end: fl.end, r, grams: G.balls[st.ball].m * 1000,
+      mass: G.balls[st.ball].m, hive: st.alliance, gen: gen[st.alliance], spinAxis, spinRate, vEnd });
+    // display limit: only old fired balls lying loose on the field go; staged and held balls (their weight) always stay
+    const loose = balls.filter(b => !b.staged && (b.mode === "loose" || b.mode === "sleep"));
+    for (const b of loose.slice(0, Math.max(0, loose.length - 40))) {
+      if (b.mesh.parent) b.mesh.parent.remove(b.mesh); scene.remove(b.trail); b.mesh.geometry.dispose(); b.trail.geometry.dispose();
+      balls.splice(balls.indexOf(b), 1);
+    }
+    shotNo++;
+    const words = { 0: fl.inCell ? "in" : fl.hitBall ? "went in, but bounced off the balls in the CELL and fell out" : "went in, but bounced back out", 1: fl.inCell ? "went in too flat: likely to bounce out" : "missed", 2: fl.inCell ? "touched the rim, rolled in (luck)" : "touched the rim, bounced out",
+      3: "blocked by the other HIVE", 4: "hit the frame" };
+    const line = document.createElement("div");
+    const dv = 100 * (v / sh.v - 1), da = elev - sh.elev, dy = (yaw - sh.yaw) / DEG;
+    line.innerHTML = `#${shotNo} ${eff === "manual" ? "manual, " : ""}${st.ball}: ${elev.toFixed(1)}° (${da >= 0 ? "+" : ""}${da.toFixed(1)}), ${v.toFixed(2)} m/s (${dv >= 0 ? "+" : ""}${dv.toFixed(1)}%), aim ${dy >= 0 ? "+" : ""}${dy.toFixed(1)}°${wearNote}: <span class="${why === 0 && fl.inCell ? "in" : "out"}">${words[why]}</span>` + (turretMode() ? ` <span style="color:var(--muted)">(${Math.round(Math.abs(spin))} rpm ${spin >= 0 ? "backspin" : "topspin"})</span>` : "");
+    const log = $("log"); if (shotNo === 1) log.innerHTML = ""; log.prepend(line);
+  }
+  function wallsFor() {                          // field walls in the HIVE frame, for the rough bounces
+    const f = fr(), xs = [(-F - f.hx) / f.sx, (F - f.hx) / f.sx].sort((a, b) => a - b);
+    return (p, v, r, bounce) => {
+      if (p[2] > 0.30) return;
+      if (p[0] < xs[0] + r) { p[0] = xs[0] + r; bounce([1, 0, 0], 0.4); }
+      if (p[0] > xs[1] - r) { p[0] = xs[1] - r; bounce([-1, 0, 0], 0.4); }
+      if (p[1] < -F + r) { p[1] = -F + r; bounce([0, 1, 0], 0.4); }
+      if (p[1] > F - r) { p[1] = F - r; bounce([0, -1, 0], 0.4); }
+    };
+  }
+  // ---------- HIVE tipping: balls that come to rest in our up-CELL add weight; at the setting, the HIVE tips ----------
+  // balls resting in each HIVE's up-CELL; `gen` counts that CELL's tips, so a ball aimed at a CELL that has since
+  // tipped isn't credited to the new one (Astra: the load used to be one total for both alliances)
+  const load = [], gen = { red: 0, blue: 0 };
+  const loadOf = (h) => load.filter(b => b.hive === h);
+  function showLoad() {
+    const L = loadOf(st.alliance), g = L.reduce((a, b) => a + b.grams, 0);
+    $("cellLoad").textContent = `In our up-CELL: ${L.length} ball${L.length === 1 ? "" : "s"}, ${Math.round(g)} g` + (L.length >= 5 ? ". It's getting full: new balls can bounce off the others" : "") + (st.tipG ? ` of ${st.tipG} g to tip. The field's calibration tests put it between ${TIP_LO} and ${TIP_HI} g (8 Pollen, 5 Nectar, or 3 Nectar + 3 Pollen tip it).` : ". Tipping is off.");
+  }
+  function dumpCell(h) {                      // the balls in the CELL ride the HIVE over, then fall out
+    const hg = hives[h]; gen[h]++;
+    // every ball in this HIVE's CELL rides over: counted ones, ones inside that never settled (user report: one stayed
+    // floating where the CELL had been), and ones in the last 0.25 s of a flight that ends in the CELL (already inside)
+    const t = performance.now() / 1000;
+    const inside = (b) => b.hive === h && b.inCell && (b.mode === "cell" ||
+      (b.mode === undefined && !b.done && b.path && b.path[b.path.length - 1][0] - (t - b.t0) < 0.25));
+    for (const b of balls.filter(inside)) {
+      hg.attach(b.mesh); b.mode = "ride"; b.tRide = t; b.done = true; scene.remove(b.trail);
+    }
+    for (let i = load.length - 1; i >= 0; i--) if (load[i].hive === h) load.splice(i, 1);
+    showLoad();
+  }
+  function checkTip(h) { if (st.tipG && loadOf(h).reduce((a, c) => a + c.grams, 0) >= st.tipG) tipHive(h); }
+  function tipHive(h) {
+    const n = loadOf(h).length;
+    dumpCell(h);
+    st.face[h] = st.face[h] === "aud" ? "rear" : "aud";
+    syncO(); syncT();
+    const line = document.createElement("div"); line.innerHTML = `<b>${h === "red" ? "Red" : "Blue"} HIVE tipped</b> after ${n} ball${n === 1 ? "" : "s"}.` + (h === st.alliance ? " The turret now aims at the new up-CELL." : "");
+    $("log").prepend(line);
+    changed();
+  }
+  // 4-ball burst: release times from the burst simulation (with the gate, Nectar waits ~0.3 s for the flywheel)
+  let burstTimers = [];
+  function stopBurst() { burstTimers.forEach(clearTimeout); burstTimers = []; }
+  function burst() {
+    stopBurst();
+    const t = G.burst[st.gate !== false ? "gate" : "nogate"][st.ball].t;
+    burstTimers = [0, 1, 2, 3].map(k => setTimeout(() => fire(k), 1000 * (t[k] ?? 0.25 * k)));
+  }
+  // match start (manual 10.3.1, positions from the field CAD): 4 Pollen in each FLOWER, 4 in each GARDEN, 3 Nectar in
+  // each up-CELL (they count toward tipping), 5 Nectar in each alliance area. Robot preloads are left out.
+  function toHiveOf(h, X, Y, Z) { const hx = h === "red" ? -HX : HX, sx = h === "red" ? 1 : -1, t = st.face[h] === "rear" ? 1 : -1; return [(X - hx) * sx, Y * t, Z]; }
+  function resetField() {
+    stopBurst(); clearBalls();
+    if (st.start !== "match" || !G.staging) { showLoad(); return; }
+    st.face = { red: "aud", blue: "rear" }; syncO(); syncT();               // the HIVEs' match-start tip
+    for (const q of G.staging) {
+      const hex = q.kind === "Pollen" ? 0xe9b824 : q.kind === "Nectar-red" ? 0xcf2f27 : 0x2a66c9, ball = q.kind === "Pollen" ? "Pollen" : "Nectar";
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(q.r, 20, 14), ballMaterial(hex));
+      mesh.position.set(...q.p); mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); scene.add(mesh);
+      const b = { staged: true, mesh, trail: new THREE.Line(new THREE.BufferGeometry()), r: q.r, mass: G.balls[ball].m, grams: G.balls[ball].m * 1000, vel: new THREE.Vector3(), still: 0, done: true };
+      if (q.where === "cell") {
+        const h = q.kind === "Nectar-red" ? "red" : "blue";
+        Object.assign(b, { mode: "cell", hive: h, gen: gen[h], inCell: true, end: toHiveOf(h, ...q.p) });
+        load.push(b);
+      } else b.mode = q.where === "garden" ? "sleep" : "fixed";           // GARDEN balls can be knocked; FLOWER / alliance-area ones stay
+      balls.push(b);
+    }
+    showLoad(); changed();
+  }
+  function clearBalls() { load.length = 0; showLoad(); balls.forEach(b => { if (b.mesh.parent) b.mesh.parent.remove(b.mesh); scene.remove(b.trail); b.mesh.geometry.dispose(); b.trail.geometry.dispose(); }); balls.length = 0; shotNo = 0; $("log").innerHTML = '<span style="color:var(--muted)">Shots appear here.</span>'; }
+
+  // ---------- views ----------
+  function setView(v) {
+    st.view = v; save();
+    const red = st.alliance === "red", sx = red ? -1 : 1;
+    let pos, tgt;
+    if (v === "driver") { pos = [sx * 3.4, 0, 1.75]; tgt = [0, 0, 0.6]; }
+    else if (v === "top") { pos = [0, -0.001, 6.2]; tgt = [0, 0, 0]; }
+    else if (v === "hive") { const [a, b] = toField(0.4, G.uc + 1.6, 0); pos = [a, b, 1.9]; tgt = toField(0, G.uc, 1.3); }
+    else { const c = Math.cos(st.heading), s = Math.sin(st.heading); pos = [st.x - 1.3 * c, st.y - 1.3 * s, 0.9]; tgt = [st.x + 1.2 * c, st.y + 1.2 * s, 0.7]; }
+    camera.position.set(...pos); controls.target.set(...tgt); controls.update();
+    document.querySelectorAll("#segView button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+  }
+
+  // ---------- input ----------
+  const seg = (id, get, set) => {
+    const el = $(id);
+    const sync = () => el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === get())));
+    el.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; set(b.dataset.v); sync(); changed(); });
+    sync(); return sync;
+  };
+  const syncA = seg("segAlliance", () => st.alliance, v => { st.alliance = v; });
+  const syncO = seg("segOurFace", () => st.face[st.alliance], v => { if (v !== st.face[st.alliance]) dumpCell(st.alliance); st.face[st.alliance] = v; });
+  const syncT = seg("segOtherFace", () => st.face[other()], v => { if (v !== st.face[other()]) dumpCell(other()); st.face[other()] = v; });
+  seg("segBall", () => st.ball, v => { st.ball = v; });
+  $("segAlliance").addEventListener("click", () => { stopBurst(); syncO(); syncT(); setView(st.view); showLoad(); });
+  $("segView").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setView(b.dataset.v); });
+  const slider = (id, out, get, set, fmt) => {
+    const el = $(id); el.value = get();
+    const show = () => { $(out).textContent = fmt(+el.value); };
+    el.addEventListener("input", () => { set(+el.value); show(); changed(); }); show();
+  };
+  slider("rW", "oW", () => st.W / IN, v => { st.W = v * IN; }, v => `${v} in`);
+  slider("rL", "oL", () => st.L / IN, v => { st.L = v * IN; }, v => `${v} in`);
+  slider("rF", "oF", () => st.tf / IN, v => { st.tf = v * IN; }, v => `${v} in`);
+  slider("rS", "oS", () => st.tl / IN, v => { st.tl = v * IN; }, v => `${v} in`);
+  const rH = $("rH");
+  slider("rH", "oH", () => Math.round(st.heading / DEG), v => { st.heading = v * DEG; }, v => `${v}°`);
+  seg("segVar", () => st.vary, v => { st.vary = v; });
+  $("segVar").addEventListener("click", () => showResult());
+  ["segBall", "segWear", "segVar", "segPhys"].forEach(id => $(id).addEventListener("click", stopBurst));
+  $("cGate").checked = st.gate !== false; $("cGate").addEventListener("change", () => { stopBurst(); st.gate = $("cGate").checked; save(); showResult(); });
+  slider("rC", "oC", () => st.camTilt, v => { st.camTilt = v; }, v => `${v}°`);
+  seg("segAim", () => st.aim, v => { st.aim = v; calcNote = ""; });
+  let manTimer = 0;
+  const manInput = (id, key) => $(id).addEventListener("input", () => {
+    if (eff === "auto") { syncManual(); return; }   // locked while the camera aims
+    st.man[key] = +$(id).value; syncManual(); calcNote = ""; rev++; jobId++; solving = false; clearTimeout(solveTimer);
+    evalMode(); updateAim(); showResult();          // move the turret now; check the shot a moment later
+    clearTimeout(manTimer); manTimer = setTimeout(() => { man = null; manualEval(); showResult(); save(); }, 60);
+  });
+  manInput("rMY", "yaw"); manInput("rME", "elev"); manInput("rMV", "v");
+  const doCalc = () => { if (eff === "auto") return; calcNote = "Working out the best shot…"; showResult(); requestSolve("calc"); };
+  $("btnCalc").addEventListener("click", doCalc); $("btnCalcHud").addEventListener("click", doCalc);
+  seg("segPhys", () => st.phys, v => { st.phys = v; });
+  seg("segWear", () => st.wear, v => { st.wear = v; });
+  seg("segStart", () => st.start, v => { st.start = v; });
+  $("segStart").addEventListener("click", () => resetField());
+  slider("rT", "oT", () => st.tipG, v => { st.tipG = v; }, v => v ? `${v} g` : "never"); $("rT").addEventListener("input", () => { showLoad(); checkTip("red"); checkTip("blue"); });
+  $("btnFire").addEventListener("click", () => fire(0)); $("btnBurst").addEventListener("click", burst); $("btnClear").addEventListener("click", resetField);
+  ["cMap", "cArc", "cCad"].forEach(id => $(id).addEventListener("change", () => { cadExtras.visible = $("cCad").checked; drawMap(); drawArc(); }));
+
+  function changed(moveOnly = false) {
+    rev++;
+    $("nectarDot").style.background = st.alliance === "red" ? "var(--nectar)" : "var(--nectar-blue)";
+    placeRobot(); drawRim(); if (!moveOnly) drawMap();
+    syncManual(); evalMode(); showLoad();
+    if (eff === "auto") { result = null; showResult(); requestSolve("auto"); }
+    else {                                        // manual: no auto solve; check the set shot (cheap)
+      jobId++; solving = false; clearTimeout(solveTimer);             // drop any pending job (auto or calculate)
+      if (jobPurpose === "calc" && calcNote.startsWith("Working")) calcNote = "";
+      man = null; showResult();
+      clearTimeout(manTimer); manTimer = setTimeout(() => { manualEval(); showResult(); }, moveOnly ? 120 : 0);
+    }
+    save();
+  }
+
+  // drag the robot on the floor
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), floorPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  let drag = null;
+  const pick = (e) => { const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); };
+  renderer.domElement.addEventListener("pointerdown", (e) => {
+    pick(e);
+    if (ray.intersectObject(chassis).length || ray.intersectObjects(turret.children, true).length) {
+      const p = new THREE.Vector3(); ray.ray.intersectPlane(floorPlane, p);
+      drag = { dx: st.x - p.x, dy: st.y - p.y, id: e.pointerId }; controls.enabled = false;
+      renderer.domElement.setPointerCapture(e.pointerId);
+    }
+  });
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    if (!drag) { pick(e); renderer.domElement.style.cursor = ray.intersectObject(chassis).length ? "grab" : ""; return; }
+    pick(e); const p = new THREE.Vector3(); if (!ray.ray.intersectPlane(floorPlane, p)) return;
+    st.x = Math.max(-F, Math.min(F, p.x + drag.dx)); st.y = Math.max(-F, Math.min(F, p.y + drag.dy)); changed(true);
+  });
+  const endDrag = () => { if (drag) { drag = null; controls.enabled = true; } };
+  renderer.domElement.addEventListener("pointerup", endDrag); renderer.domElement.addEventListener("pointercancel", endDrag);
+
+  // keyboard: field-relative drive as seen from the camera, Q/E turn, space fires
+  const keys = new Set();
+  addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea, select")) return;
+    const k = e.key.toLowerCase();
+    if (["w", "a", "s", "d", "q", "e", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) { keys.add(k); e.preventDefault(); }
+    if (k === " ") { e.preventDefault(); fire(); }
+  });
+  addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+  addEventListener("blur", () => keys.clear());
+
+  // ---------- loop ----------
+  const hud = document.querySelector(".hud"), hudHome = hud.parentNode, hudMQ = matchMedia("(max-width: 700px)");
+  function placeHud() {
+    if (hudMQ.matches && hud.parentNode === hudHome) { stage.after(hud); hud.classList.add("below"); }
+    else if (!hudMQ.matches && hud.parentNode !== hudHome) { hudHome.appendChild(hud); hud.classList.remove("below"); }
+  }
+  hudMQ.addEventListener("change", placeHud); placeHud();
+  function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(stage); resize();
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (keys.size) {
+      const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.z = 0; fwd.normalize();
+      const right = new THREE.Vector3(fwd.y, -fwd.x, 0);
+      let vx = 0, vy = 0, w = 0; const sp = 1.2;
+      if (keys.has("w") || keys.has("arrowup")) { vx += fwd.x; vy += fwd.y; }
+      if (keys.has("s") || keys.has("arrowdown")) { vx -= fwd.x; vy -= fwd.y; }
+      if (keys.has("d") || keys.has("arrowright")) { vx += right.x; vy += right.y; }
+      if (keys.has("a") || keys.has("arrowleft")) { vx -= right.x; vy -= right.y; }
+      if (keys.has("q")) w += 1; if (keys.has("e")) w -= 1;
+      st.x = Math.max(-F, Math.min(F, st.x + vx * sp * dt)); st.y = Math.max(-F, Math.min(F, st.y + vy * sp * dt));
+      st.heading = Math.atan2(Math.sin(st.heading + w * 1.8 * dt), Math.cos(st.heading + w * 1.8 * dt));
+      rH.value = Math.round(st.heading / DEG); $("oH").textContent = `${rH.value}°`;
+      changed(true);
+    }
+    for (const h of ["red", "blue"]) {           // tip the HIVEs smoothly
+      const tgt = targetAngle(h), a = hiveAngle[h];
+      if (Math.abs(tgt - a) > 1e-4) { hiveAngle[h] = a + (tgt - a) * Math.min(1, dt * 6); hives[h].rotation.x = hiveAngle[h]; }
+    }
+    const t = now / 1000;
+    for (const b of balls) {
+      if (b.mode === "ride") {                 // turning with the HIVE; let go once it's most of the way over
+        if (t - b.tRide > 0.45) {
+          scene.attach(b.mesh); b.mode = "loose"; b.still = 0;
+          const p = b.mesh.position, c = hives[b.hive].position, w = (targetAngle(b.hive) - hiveAngle[b.hive]) * 6;
+          b.vel = new THREE.Vector3(0, -w * (p.z - c.z), w * (p.y - c.y));      // omega x r about the pivot (x) axis
+        }
+        continue;
+      }
+      if (b.mode === "loose" || b.mode === "sleep" || b.mode === "cell" || b.mode === "fixed") continue;   // stepped below / resting in the CELL
+      const el = t - b.t0, P = b.path;
+      while (b.k < P.length - 2 && P[b.k + 1][0] <= el) b.k++;
+      const a = P[b.k], c = P[Math.min(b.k + 1, P.length - 1)], f = c[0] > a[0] ? Math.min(1, Math.max(0, (el - a[0]) / (c[0] - a[0]))) : 1;
+      const prevPos = b.mesh.position.clone();
+      b.mesh.position.set(a[1] + (c[1] - a[1]) * f, a[2] + (c[2] - a[2]) * f, a[3] + (c[3] - a[3]) * f);
+      // turn the ball: roll on the surface it touches, or spin in the air (backspin about the launch's side axis)
+      const n = new THREE.Vector3(a[4] || 0, a[5] || 0, a[6] || 0), mv = b.mesh.position.clone().sub(prevPos);
+      if (n.lengthSq() > 0.5) { const ax = n.clone().cross(mv); const L = ax.length(); if (L > 1e-7) b.mesh.rotateOnWorldAxis(ax.divideScalar(L), mv.length() / b.r); }
+      else if (b.spinRate) b.mesh.rotateOnWorldAxis(b.spinAxis, b.spinRate * dt);
+      if (!b.done) {
+        const pts = P.slice(0, b.k + 1).map(q => new THREE.Vector3(q[1], q[2], q[3])); pts.push(b.mesh.position.clone());
+        b.trail.geometry.dispose(); b.trail.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+        if (b.k >= P.length - 2) {
+          b.done = true;
+          if (b.inCell && b.gen !== gen[b.hive]) {                                // its CELL tipped while it flew: it falls
+            b.mode = "loose"; b.vel = b.vEnd.clone(); b.still = 0;
+          } else if (b.inCell && b.settled && b.gen === gen[b.hive]) {
+            b.mode = "cell"; load.push(b); showLoad(); checkTip(b.hive);        // at rest in the CELL: credited to its HIVE
+          } else if (b.inCell) { b.mode = "cell";                               // inside but never settled: shown, not counted
+          } else { b.mode = "loose"; b.vel = b.vEnd.clone(); b.still = 0; }       // a miss (or its CELL tipped meanwhile) rolls on the field
+        }
+      }
+    }
+    stepLoose(dt);
+    controls.update(); renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  // balls loose on the field (misses, and balls falling out of a tipped HIVE): gravity, rolling on the tiles with a little
+  // rolling resistance, the field walls, and bumping into each other (heavier Nectar pushes lighter Pollen more)
+  function stepLoose(dt) {
+    const L = balls.filter(b => b.mode === "loose" || b.mode === "sleep" || b.mode === "fixed"), SUB = 4, h = dt / SUB, g = 9.81;
+    if (!L.some(b => b.mode === "loose")) return;
+    for (let k = 0; k < SUB; k++) {
+      for (const b of L) {
+        if (b.mode !== "loose") continue;
+        const p = b.mesh.position, v = b.vel, r = b.r, before = p.clone();
+        v.z -= g * h; p.addScaledVector(v, h);
+        if (p.z < r) {                                   // the tiles
+          p.z = r;
+          if (v.z < -0.3) { v.z = -0.45 * v.z; v.x *= 0.9; v.y *= 0.9; } else v.z = 0;
+        }
+        if (p.z <= r + 1e-4) {                           // rolling: resistance, and turn the ball to match
+          const sp = Math.hypot(v.x, v.y), dec = 0.03 * g * h;
+          if (sp > 1e-9) { const kk = Math.max(0, sp - dec) / sp; v.x *= kk; v.y *= kk; }
+        }
+        if (p.z < 0.30) for (const [ax, lim] of [["x", F - r], ["y", F - r]]) {   // perimeter walls
+          if (p[ax] > lim) { p[ax] = lim; if (v[ax] > 0) v[ax] = -0.45 * v[ax]; }
+          if (p[ax] < -lim) { p[ax] = -lim; if (v[ax] < 0) v[ax] = -0.45 * v[ax]; }
+        }
+        const mv = p.clone().sub(before);
+        if (p.z <= r + 1e-4) { const ax = new THREE.Vector3(-mv.y, mv.x, 0), l = ax.length(); if (l > 1e-8) b.mesh.rotateOnWorldAxis(ax.divideScalar(l), l / r); }
+      }
+      for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {   // ball against ball
+        const A = L[i], B = L[j], pa = A.mesh.position, pb = B.mesh.position, d = pb.clone().sub(pa), dist = d.length(), rr = A.r + B.r;
+        if (dist >= rr || dist < 1e-9) continue;
+        const n = d.divideScalar(dist), over = rr - dist, ia = 1 / A.mass, ib = 1 / B.mass;
+        const wa = A.mode === "loose" ? ia : 0, wb = B.mode === "loose" ? ib : 0;
+        if (wa + wb === 0) continue;
+        pa.addScaledVector(n, -over * wa / (wa + wb)); pb.addScaledVector(n, over * wb / (wa + wb));
+        const vr = B.vel.clone().sub(A.vel).dot(n);
+        if (vr < 0) {
+          const J = -(1 + 0.4) * vr / (ia + ib);
+          A.vel.addScaledVector(n, -J * ia); B.vel.addScaledVector(n, J * ib);
+          for (const X of [A, B]) if (X.mode === "sleep" && X.vel.length() > 0.05) { X.mode = "loose"; X.still = 0; }
+        }
+      }
+    }
+    for (const b of L) if (b.mode === "loose") {         // settle
+      if (b.mesh.position.z <= b.r + 1e-3 && b.vel.length() < 0.02) { if ((b.still += dt) > 0.5) { b.mode = "sleep"; b.vel.set(0, 0, 0); } } else b.still = 0;
+    }
+  }
+  hiveAngle.red = targetAngle("red"); hiveAngle.blue = targetAngle("blue");
+  hives.red.rotation.x = hiveAngle.red; hives.blue.rotation.x = hiveAngle.blue;
+  cadExtras.visible = $("cCad").checked;
+  setView(st.view); changed(); resetField();
+  requestAnimationFrame(frame);
+})();
+</script>
